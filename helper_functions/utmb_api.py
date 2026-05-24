@@ -8,7 +8,10 @@ from helper_functions.common import time_to_hours
 # Get UTMB LIVE API access token
 # -------------------------------------------------
 
-def get_utmb_live_access_token(utmb_username, utmb_password):
+def get_utmb_live_access_token(
+        utmb_username: str, 
+        utmb_password: str
+    ) -> str:
 
     login_data = {
         "grant_type": "password",
@@ -28,7 +31,10 @@ def get_utmb_live_access_token(utmb_username, utmb_password):
 # Get UTMB API access token
 # -------------------------------------------------
 
-def get_utmb_access_token(utmb_username, utmb_password):
+def get_utmb_access_token(
+        utmb_username: str, 
+        utmb_password: str
+    ) -> str:
 
     url = "https://accounts.utmb.world/auth/realms/utmb-world/protocol/openid-connect/token"
 
@@ -49,7 +55,13 @@ def get_utmb_access_token(utmb_username, utmb_password):
 # Get race results
 # -------------------------------------------------
 
-def get_race_results(race_id, race_year, course_id, access_token, printouts=False):
+def get_race_results(
+        race_id: str, 
+        race_year: int, 
+        course_id: str, 
+        access_token: str, 
+        printouts: bool = False
+    ) -> pd.DataFrame:
     print(f"Retrieving data for: {race_id} ~ {course_id} ~ {race_year}")
     if printouts:
         print("-----------------------------------------")
@@ -170,7 +182,10 @@ def get_race_results(race_id, race_year, course_id, access_token, printouts=Fals
 # Get runner results
 # -------------------------------------------------
 
-def get_runner_results(runner_id, access_token):
+def get_runner_results(
+        runner_id: str, 
+        access_token: str
+    ) -> pd.DataFrame:
 
     # Set up HTTP headers for UTMB API
     headers = {
