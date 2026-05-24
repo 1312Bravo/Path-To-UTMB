@@ -130,15 +130,17 @@ def get_race_results(
             category=FutureWarning
             )
         
+        columns_to_select = [
+            "raceId", "raceName", "raceCategory", "start",
+            "info.fullname", "info.url", "info.index",
+            "info.sex", "info.age", "info.countryCode", "info.category", "info.club",
+            "ranking.scratch", "ranking.sex", "ranking.category",
+            "raceTime", "diffToFirst", "status", "isFinisher"
+        ]
+        
         race_results = (
             pd.concat(race_results_list, ignore_index=True)
-            [[
-                "raceId", "raceName", "raceCategory", "start",
-                "info.fullname", "info.url", "info.index",
-                "info.sex", "info.age", "info.countryCode", "info.category", "info.club",
-                "ranking.scratch", "ranking.sex", "ranking.category",
-                "raceTime", "diffToFirst", "status", "isFinisher"
-            ]]
+            .reindex(columns=columns_to_select)
             .rename(columns={
                 "raceId": "race_id", 
                 "raceName": "race_name", 
@@ -167,7 +169,6 @@ def get_race_results(
                 race_start_time_hours = lambda x: x["race_start_time"].apply(time_to_hours),
                 runner_final_status_map = lambda x: x["runner_final_status"].map({"f": "finisher", "a": "dnf", "hd": "broomed"})
             )
-
         )
 
     # Format data ...
