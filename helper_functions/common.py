@@ -1,4 +1,7 @@
-# Time to hours conversion helper function
+# -------------------------------------------------
+# Time to hours conversion 
+# -------------------------------------------------
+
 def time_to_hours(timestr):
     try:
         h, m, s = map(int, timestr.split(":"))
