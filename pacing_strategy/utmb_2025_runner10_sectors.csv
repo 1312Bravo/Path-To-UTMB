@@ -1,0 +1,16 @@
+checkpoint,departure,arrival,duration,grade,distance,elevation
+CHAMONIX,"PET., 17:45",-,0 Miles,0 ft+,0 Miles,0 ft+
+COL DE VOZA,"PET., 19:04",1:19:00,8.8 mph,9 Miles,3909 ft+,
+SAINT-GERVAIS,"PET., 19:42",1:57:51,8.2 mph,16.3 Miles,3977 ft+,
+LES CONTAMINES MONTJOIE,"PET., 20:34",2:49:25,8.9 mph,20.3 Miles,5390 ft+,
+LA BALME,"PET., 21:08",3:43:49,5.9 mph,25.6 Miles,7772 ft+,
+REFUGE DE LA CROIX DU BONHOMME,"PET., 22:25",4:40:54,3.8 mph,29.3 Miles,10022 ft+,
+LES CHAPIEUX,"PET., 22:53",5:08:02,7.2 mph,32.6 Miles,10082 ft+,
+COL DE LA SEIGNE,"SOR., 00:18",8:33:35,4.7 mph,39.2 Miles,,
+LAC COMBAL,"SOR., 00:41",8:56:30,7.3 mph,42.3 Miles,,
+ARÊTE DU MONT-FAVRE,"SOR., 01:18",7:33:27,4 mph,46.8 Miles,,
+CHECROUIT - MAISON VIELLE,"SOR., 01:42",7:57:55,7.2 mph,47.6 Miles,,
+COURMAYEUR - MOUNTAIN SPORT CENTER ENTRÉE,"SOR., 02:06",8:21:58,7.3 mph,56.7 Miles,,
+COURMAYEUR - MOUNTAIN SPORT CENTER SORTIE,"SOR., 02:18",8:25:20,-,56.7 Miles,,
+REFUGE BERTONE,"SOR., 03:02",9:17:22,3.8 mph,54.1 Miles,,
+REFUGE BONATTI,"SOR., 03:50",10:05:27,5.8 mph,56.7 Miles,,
