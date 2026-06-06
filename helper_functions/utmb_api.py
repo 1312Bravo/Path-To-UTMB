@@ -2,7 +2,7 @@ import pandas as pd
 import requests
 import warnings
 
-from helper_functions.common import time_to_hours
+from helper_functions.common import time_to_hours, to_snake_case
 
 # -------------------------------------------------
 # Get UTMB LIVE API access token
@@ -62,6 +62,7 @@ def get_race_results(
         access_token: str, 
         printouts: bool = False
     ) -> pd.DataFrame:
+
     print(f"Retrieving data for: {race_id} ~ {course_id} ~ {race_year}")
     if printouts:
         print("-----------------------------------------")
@@ -132,7 +133,7 @@ def get_race_results(
         
         columns_to_select = [
             "raceId", "raceName", "raceCategory", "start",
-            "info.fullname", "info.url", "info.index",
+            "bib", "info.fullname", "info.url", "info.index",
             "info.sex", "info.age", "info.countryCode", "info.category", "info.club",
             "ranking.scratch", "ranking.sex", "ranking.category",
             "raceTime", "diffToFirst", "status", "isFinisher"
@@ -146,6 +147,7 @@ def get_race_results(
                 "raceName": "race_name", 
                 "raceCategory": "race_category",
                 "start": "race_start_time",
+                "bib": "runner_bib_number",
                 "info.fullname": "runner_name", 
                 "info.url": "runner_url", 
                 "info.index": "runner_overall_index",
@@ -185,8 +187,13 @@ def get_race_results(
 
 def get_runner_results(
         runner_id: str, 
-        access_token: str
+        access_token: str,
+        printouts: bool = False
     ) -> pd.DataFrame:
+
+    print(f"Retrieving data for: {runner_id}")
+    if printouts:
+        print("-----------------------------------------")
 
     # Set up HTTP headers for UTMB API
     headers = {
@@ -207,6 +214,7 @@ def get_runner_results(
         headers=headers,
     )
 
+    # Store results in a dataframe
     data = res.json()
     results = data.get("results", [])
     df = pd.DataFrame(results)
@@ -243,3 +251,75 @@ def get_runner_results(
     )
 
     return runner_results_df
+
+# -------------------------------------------------
+# Get runner sectors results for a specific race
+# -------------------------------------------------
+
+def get_runner_race_sector_data(
+        race_id: str,
+        race_year: int,
+        runner_bib_num: int,
+        access_token: str,
+        printouts: bool = False
+    ) -> pd.DataFrame:
+
+    if printouts:
+        print(f"Fetching runner sectors: {runner_bib_num} ~ {race_id} ~ {race_year}")
+
+    # Set up HTTP headers for UTMB API
+    headers = {
+        "Accept": "*/*",
+        "User-Agent": "Mozilla/5.0",
+        "Origin": "https://live.utmb.world",
+        "Referer": "https://live.utmb.world/",
+        "X-Tenant": f"{race_id}_{race_year}", 
+        "Authorization": f"Bearer {access_token}",
+    }
+
+    # GET request to the UTMB API
+    url = f"https://utmblive-api.utmb.world/runners/{runner_bib_num}"
+    res = requests.get(url, headers=headers, params={"locale": "en"})
+    res.raise_for_status()
+
+    # Get data and extract relevant information
+    data = res.json()
+    resume = data.get("resume", {})
+    detail = data.get("detail", {})
+    passings = detail.get("passings", [])
+
+    if not passings:
+        passings = pd.DataFrame()
+
+    runner_sectors_df = pd.DataFrame(passings)
+    runner_sectors_df.columns = [
+        to_snake_case(col)
+        for col in runner_sectors_df.columns
+    ]
+    runner_sectors_df = runner_sectors_df.rename(columns={
+        "point_id": "sector_checkpoint_id",
+        "datetime_in": "sector_arrival_time",
+        "datetime_out": "sector_departure_time",
+        "time_seconds": "sector_time_seconds",
+        "time": "sector_time",
+        "cumulated_time": "sector_race_time_at_checkpoint",
+        "rank": "sector_checkpoint_rank",
+        "rank_diff": "sector_checkpoint_rank_change",
+        "speed": "sector_speed_kmh",
+        "pace": "sector_pace_min_per_km",
+        "rest_time_seconds": "sector_rest_time_seconds",
+        "rest_time": "sector_rest_time"
+    })
+
+    info = resume.get("info", {})
+    runner_sectors_df = runner_sectors_df.assign(
+        runner_bib_number = resume.get("bib"),
+        runner_name = info.get("fulname"),
+        runner_age = info.get("age"),
+        runner_gender = info.get("sex"),
+        runner_overall_index = info.get("index"),
+        runner_category = info.get("category"),
+        runner_club = info.get("club")
+    )
+
+    return runner_sectors_df
