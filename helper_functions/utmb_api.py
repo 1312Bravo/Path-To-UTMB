@@ -303,6 +303,7 @@ def get_runner_race_sector_data(
         "time_seconds": "sector_time_seconds",
         "time": "sector_time",
         "cumulated_time": "sector_race_time_at_checkpoint",
+        "prediction": "sector_predicted_time",
         "rank": "sector_checkpoint_rank",
         "rank_diff": "sector_checkpoint_rank_change",
         "speed": "sector_speed_kmh",
