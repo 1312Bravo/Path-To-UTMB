@@ -278,9 +278,12 @@ def get_runner_race_sector_data(
     }
 
     # GET request to the UTMB API
-    url = f"https://utmblive-api.utmb.world/runners/{runner_bib_num}"
-    res = requests.get(url, headers=headers, params={"locale": "en"})
-    res.raise_for_status()
+    try:
+        url = f"https://utmblive-api.utmb.world/runners/{runner_bib_num}"
+        res = requests.get(url, headers=headers, params={"locale": "en"})
+        res.raise_for_status()
+    except:
+        return pd.DataFrame()
 
     # Get data and extract relevant information
     data = res.json()
@@ -315,12 +318,24 @@ def get_runner_race_sector_data(
     info = resume.get("info", {})
     runner_sectors_df = runner_sectors_df.assign(
         runner_bib_number = resume.get("bib"),
-        runner_name = info.get("fulname"),
+        runner_name = info.get("fullname"),
         runner_age = info.get("age"),
         runner_gender = info.get("sex"),
         runner_overall_index = info.get("index"),
         runner_category = info.get("category"),
         runner_club = info.get("club")
     )
+
+    info_cols = [
+        "runner_bib_number",
+        "runner_name",
+        "runner_age",
+        "runner_gender",
+        "runner_overall_index",
+        "runner_category",
+        "runner_club"
+    ]
+    other_cols = [col for col in runner_sectors_df.columns if col not in info_cols]
+    runner_sectors_df = runner_sectors_df[info_cols + other_cols]
 
     return runner_sectors_df
