@@ -197,6 +197,57 @@ Interpretation:
 This is robust and easy to communicate, but it loses some information about how large
 the time gaps are.
 
+## Possible Year Normalization
+
+If we include multiple years, we may also need to normalize race times across years.
+Different years can have different weather, trail conditions, reroutes, heat, rain,
+mud, or other race-day effects. A runner's final time is therefore not only a function
+of ability and pacing. It is also partly a function of the year.
+
+One rough idea is to adjust each year so that the typical finish time is comparable
+across years. For example, define the median finisher time in year $y$ as:
+
+$$M_y = \text{median final time in year } y$$
+
+Then choose a reference median:
+
+$$M_{\text{ref}} = \text{median final time in the reference year or across all years}$$
+
+A simple adjusted time could be:
+
+$$T_i^{*} = T_i \cdot \frac{M_{\text{ref}}}{M_{y(i)}}
+$$
+
+Interpretation:
+
+- If a year was generally slower, times from that year are scaled downward.
+- If a year was generally faster, times from that year are scaled upward.
+
+This could help remove broad year-level effects such as weather. However, this is only
+a first idea. The median may be better than the mean because it is less sensitive to
+extreme results, but we should test both and inspect whether the adjustment makes sense.
+
+The harder question is what to do with sector times. Weather and course conditions may
+not affect all sectors equally. For example, heat may hurt exposed climbs more than
+forest descents, and mud may affect technical descents more than runnable roads. So if
+we normalize final race time across years, we may also need sector-level year
+normalization:
+
+$$m_{y,j} = \text{median sector time in year } y \text{ and sector } j$$
+
+and:
+
+$$t_{ij}^{*} = t_{ij} \cdot \frac{m_{\text{ref},j}}{m_{y(i),j}}
+$$
+
+This would adjust each sector separately within each year.
+
+Important caution:
+
+This should stay exploratory for now. Year normalization may remove real weather
+effects, but it might also remove meaningful race difficulty that is part of the story.
+Before implementing it, we should compare unadjusted and adjusted results side by side.
+
 # Normalizing Pacing
 
 Pacing should also be normalized. Absolute sector times are not comparable across
