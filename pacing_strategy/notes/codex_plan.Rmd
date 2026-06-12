@@ -1,0 +1,673 @@
+---
+title: "Pacing Strategy Analysis Plan"
+output: html_document
+---
+
+# Goal
+
+The broad goal is to understand how pacing strategy relates to final race outcome.
+
+We have sector-level race data for each runner, plus pre-race information such as
+`runner_overall_index`, which can be treated as a rough estimate of running ability
+before the race. The main research question is:
+
+> Among runners with similar pre-race ability, which pacing patterns are associated
+> with better or worse outcomes?
+
+This is important because absolute race time alone mixes many things together:
+fitness, weather, course difficulty, injury, nutrition, and tactical pacing. A strong
+runner can run a fast time even with bad pacing, while a weaker runner can execute a
+very good race and still finish later in absolute terms. The analysis should therefore
+compare runners mostly against other runners of similar expected ability.
+
+# Main Intuition
+
+The raw question "who was fastest?" is not enough. A better question is:
+
+> Given what we expected from this runner before the race, did they perform better
+> or worse than expected, and is that related to how they distributed effort across
+> the race?
+
+For example, two runners can have the same final time but very different pacing:
+
+- Runner A starts fast, slows down heavily, and survives to the finish.
+- Runner B starts conservatively, keeps effort steady, and finishes strongly.
+
+Even if both finish in the same time, their pacing strategies tell different stories.
+If Runner B had a worse pre-race index, Runner B may actually have executed the better
+race.
+
+# Important Columns
+
+Likely key columns:
+
+- `runner_id`: unique runner/race/year identifier.
+- `race_id`: race identifier.
+- `year`: race year.
+- `runner_overall_index`: pre-race ability estimate.
+- `runner_final_time`: final race time, if available for finishers.
+- `runner_final_status` or similar: finisher, DNF, DNS, etc.
+- `sector_checkpoint_id`: ordered checkpoint or sector index.
+- `sector_time`: time spent in each sector.
+- `sector_time_min`: sector time converted to minutes.
+- `sector_race_time_at_checkpoint`: cumulative race time at each checkpoint.
+- `sector_race_time_at_checkpoint_min`: cumulative race time in minutes.
+
+Before modeling, we should confirm the exact schema and units. In particular:
+
+- Is `runner_overall_index` lower for stronger runners, or higher for stronger runners?
+- Are all sectors available for all finishers?
+- How are DNF runners represented after their final reached checkpoint?
+- Are checkpoint IDs now normalized to clean `0, 1, 2, ..., K` values within each
+  `race_id` and `year`?
+
+# Unit Of Analysis
+
+There are two natural analysis levels.
+
+## Runner-Level Analysis
+
+One row per runner. This is useful for modeling final outcome.
+
+Example features:
+
+- final race time
+- DNF indicator
+- pre-race overall index
+- pacing summary features
+- slowdown features
+- early/middle/late split ratios
+
+This level answers:
+
+> Which pacing summaries are associated with better final outcomes?
+
+## Runner-Sector-Level Analysis
+
+One row per runner per sector. This is useful for understanding how the race unfolds.
+
+Example features:
+
+- sector time
+- sector rank
+- cumulative time
+- sector number
+- relative sector pace
+- position change from sector to sector
+
+This level answers:
+
+> Where in the race do different groups gain or lose time?
+
+# Ability Groups
+
+Because `runner_overall_index` is a pre-race ability estimate, we can use it to group
+runners into comparable ability bands.
+
+Possible groupings:
+
+- Quantiles, for example 5 groups or 10 groups.
+- Fixed bins if the index has an interpretable scale.
+- Gender-specific or category-specific quantiles if the distribution differs strongly
+  by group.
+
+A simple starting point:
+
+```{r}
+# Example idea in pandas syntax, not R:
+# runner_df["ability_group"] = pd.qcut(
+#     runner_df["runner_overall_index"],
+#     q=5,
+#     labels=["G1", "G2", "G3", "G4", "G5"]
+# )
+```
+
+If lower `runner_overall_index` means stronger runner, then group `G1` would contain
+the strongest runners. If higher means stronger, then the labels should be reversed.
+
+# Normalizing Final Outcome
+
+Absolute final time is not enough because stronger runners are expected to finish
+faster. We need an outcome that says whether a runner performed better or worse than
+expected.
+
+## Option 1: Compare Within Ability Group
+
+For each ability group, compute each runner's performance relative to the group.
+
+Let:
+
+$$T_i = \text{final time of runner } i$$
+
+and:
+
+$$\bar{T}_{g(i)} = \text{average final time among finishers in runner } i\text{'s ability group}$$
+
+Then:
+
+$$\Delta T_i = T_i - \bar{T}_{g(i)}$$
+
+Interpretation:
+
+- $\Delta T_i < 0$: runner was faster than the average runner in their ability group.
+- $\Delta T_i > 0$: runner was slower than the average runner in their ability group.
+
+This is easy to explain, but it can be rough if ability groups are too wide.
+
+## Option 2: Regression Residual
+
+Fit a baseline model that predicts final time from pre-race ability.
+
+For example:
+
+$$T_i = \beta_0 + \beta_1 \cdot I_i + \epsilon_i$$
+
+where:
+
+- $T_i$ is final race time.
+- $I_i$ is `runner_overall_index`.
+- $\epsilon_i$ is the residual.
+
+Then:
+
+$$\epsilon_i = T_i - \hat{T}_i$$
+
+Interpretation:
+
+- $\epsilon_i < 0$: faster than expected.
+- $\epsilon_i > 0$: slower than expected.
+
+This is attractive because it creates a clean "performance relative to expectation"
+metric. We can later improve the baseline model with gender, age category, year, or
+race-specific effects.
+
+## Option 3: Percentile Outcome Within Ability Group
+
+Within each ability group, rank finishers by final race time.
+
+For runner $i$:
+
+$$P_i = \text{percentile rank of final time within ability group}$$
+
+Interpretation:
+
+- Low percentile can mean a strong result.
+- High percentile can mean a weak result.
+
+This is robust and easy to communicate, but it loses some information about how large
+the time gaps are.
+
+# Normalizing Pacing
+
+Pacing should also be normalized. Absolute sector times are not comparable across
+runners because stronger runners are faster everywhere.
+
+The useful question is not:
+
+> Was this sector fast in absolute minutes?
+
+The useful question is:
+
+> Was this sector fast relative to this runner's own race, or relative to similar
+> runners?
+
+## Runner-Relative Sector Share
+
+For each runner and sector:
+
+$$s_{ij} = \frac{t_{ij}}{T_i}$$
+
+where:
+
+- $t_{ij}$ is runner $i$'s time in sector $j$.
+- $T_i$ is runner $i$'s final race time.
+
+Interpretation:
+
+- $s_{ij}$ is the fraction of total race time spent in sector $j$.
+- This creates a pacing profile independent of total speed.
+
+This is good for finishers. For DNF runners, total final time is not comparable, so a
+different treatment is needed.
+
+## Group-Relative Sector Performance
+
+Within each `race_id`, `year`, `ability_group`, and `sector_checkpoint_id`, compare a
+runner's sector time to the median sector time for that group.
+
+Let:
+
+$$m_{g,j} = \text{median sector time for ability group } g \text{ in sector } j$$
+
+Then:
+
+$$r_{ij} = \frac{t_{ij}}{m_{g(i),j}}$$
+
+Interpretation:
+
+- $r_{ij} < 1$: faster than the median comparable runner in that sector.
+- $r_{ij} > 1$: slower than the median comparable runner in that sector.
+
+This is useful because it adjusts for sector difficulty. A climb sector and a descent
+sector should not be compared on the same absolute scale.
+
+## Cumulative Relative Time
+
+We can also compare cumulative time at each checkpoint:
+
+$$c_{ij} = \frac{C_{ij}}{\hat{C}_{g(i),j}}$$
+
+where:
+
+- $C_{ij}$ is runner $i$'s cumulative time at checkpoint $j$.
+- $\hat{C}_{g(i),j}$ is the median cumulative time for that ability group at checkpoint
+  $j$.
+
+This helps show whether a runner is ahead of or behind the expected trajectory at each
+point in the race.
+
+# Pacing Strategy Features
+
+Once sector times are normalized, we can create interpretable pacing features.
+
+## Early, Middle, Late Split Ratios
+
+Divide the race into thirds:
+
+- early race
+- middle race
+- late race
+
+Then compute average relative pace in each part.
+
+Example:
+
+$$E_i = \text{mean relative sector time in early sectors}$$
+
+$$M_i = \text{mean relative sector time in middle sectors}$$
+
+$$L_i = \text{mean relative sector time in late sectors}$$
+
+Useful derived features:
+
+$$\text{late_vs_early}_i = L_i - E_i$$
+
+or:
+
+$$\text{late_early_ratio}_i = \frac{L_i}{E_i}$$
+
+Interpretation:
+
+- High value: runner slowed down later relative to early race.
+- Low value: runner finished stronger relative to early race.
+
+## Positive Split / Negative Split
+
+A simple pacing concept:
+
+- Positive split: second half slower than first half.
+- Negative split: second half faster than first half.
+
+For long trail races, true negative splits may be rare because terrain changes, fatigue,
+and course profile matter. So we should compute this after sector/course normalization,
+not only using raw time.
+
+## Pacing Slope
+
+Fit a simple line to the runner's normalized sector pace over sector number:
+
+$$r_{ij} = \alpha_i + \gamma_i \cdot j + e_{ij}$$
+
+where:
+
+- $j$ is sector number.
+- $r_{ij}$ is normalized sector time.
+- $\gamma_i$ is the pacing slope.
+
+Interpretation:
+
+- $\gamma_i > 0$: runner becomes relatively slower later.
+- $\gamma_i < 0$: runner becomes relatively faster later.
+- $\gamma_i \approx 0$: runner is relatively steady.
+
+This gives one compact number for pacing trend.
+
+## Pacing Variability
+
+Measure how uneven a runner's pacing is:
+
+$$V_i = \text{sd}(r_{i1}, r_{i2}, ..., r_{iK})$$
+
+Interpretation:
+
+- Low variability: steady pacing relative to comparable runners.
+- High variability: uneven pacing, possibly surges, crashes, long stops, or terrain
+  mismatch.
+
+## Early Aggression
+
+Define early aggression as being faster than expected in the early part of the race.
+
+For example:
+
+$$A_i = 1 - E_i$$
+
+where $E_i$ is early relative sector time.
+
+Interpretation:
+
+- Larger $A_i$: runner started faster relative to their group.
+- Smaller or negative $A_i$: runner started more conservatively.
+
+We can then test whether high early aggression predicts worse later outcomes.
+
+## Fade / Blow-Up Score
+
+A "fade" score can compare late-race relative pace against early-race relative pace:
+
+$$F_i = L_i - E_i$$
+
+Interpretation:
+
+- $F_i > 0$: runner faded later.
+- $F_i < 0$: runner improved later.
+
+This should be one of the central features.
+
+# DNF Handling
+
+DNF runners are very important, but they should probably not be mixed blindly with
+finishers in final-time models.
+
+There are at least three useful DNF analyses.
+
+## Analysis A: Finishers Only
+
+First analyze only finishers. This gives the cleanest final-time outcome:
+
+$$T_i = \text{final race time}$$
+
+This is the best first step because all runners have complete sector paths.
+
+Limitation:
+
+This ignores the worst outcomes, and pacing mistakes may be strongly connected to DNF.
+
+## Analysis B: DNF Probability
+
+Create a binary outcome:
+
+$$D_i =
+\begin{cases}
+1, & \text{runner DNF} \\
+0, & \text{runner finished}
+\end{cases}
+$$
+
+Then model:
+
+$$P(D_i = 1) = f(\text{ability}, \text{early pacing}, \text{early variability}, ...)
+$$
+
+This asks:
+
+> Does starting too fast increase DNF probability among runners of similar ability?
+
+Important detail:
+
+Only use features available before the DNF point. For example, we can use first 25% or
+first 50% of sectors, but we should not use late-race sectors that DNF runners never
+reached.
+
+## Analysis C: Survival / Dropout Timing
+
+Treat each checkpoint as a point where the runner is still active or has dropped.
+
+This becomes a time-to-event problem:
+
+$$h_{ij} = P(\text{DNF at checkpoint } j \mid \text{still active before } j)
+$$
+
+This is more advanced, but it is conceptually a very good fit for ultramarathon data.
+It asks:
+
+> At which checkpoint does pacing stress start to predict dropout?
+
+# Suggested First Workflow
+
+## Step 1: Build A Clean Runner-Level Table
+
+Create one row per `runner_id`.
+
+Include:
+
+- `race_id`
+- `year`
+- `runner_id`
+- `runner_bib_number`
+- `runner_overall_index`
+- final status
+- final time in minutes
+- number of reached checkpoints
+- DNF flag
+
+This table is the base for group definitions and final outcomes.
+
+## Step 2: Confirm Sector Structure
+
+For each `race_id` and `year`, confirm:
+
+- sector IDs are consecutive from `0` to max sector.
+- every finisher has the expected number of sectors.
+- DNF runners have fewer sectors or missing later sectors.
+- sector times are numeric minutes.
+
+Useful checks:
+
+```{r}
+# Pseudocode:
+# sector_count_by_runner = df.groupby("runner_id")["sector_checkpoint_id"].nunique()
+# sector_count_by_runner.describe()
+```
+
+## Step 3: Create Ability Groups
+
+Start with 5 groups based on `runner_overall_index`.
+
+Then check:
+
+- number of runners per group
+- final time distribution per group
+- DNF rate per group
+
+If groups are very imbalanced, use quantiles instead of fixed bins.
+
+## Step 4: Create Normalized Pacing Features
+
+For each runner-sector row:
+
+- sector time share of total finish time
+- sector time relative to ability-group median
+- cumulative time relative to ability-group median
+
+Then create runner-level summaries:
+
+- early relative pace
+- middle relative pace
+- late relative pace
+- late-vs-early fade score
+- pacing slope
+- pacing variability
+- first-half vs second-half ratio
+
+## Step 5: Analyze Finishers
+
+For finishers only:
+
+Outcome options:
+
+- final time residual after accounting for `runner_overall_index`
+- final time rank within ability group
+- final time percentile within ability group
+
+Core question:
+
+> Among similar runners, do conservative starters, steady pacers, or late movers
+> perform better?
+
+Recommended first model:
+
+$$\text{performance residual}_i =
+\beta_0 +
+\beta_1 \cdot \text{early aggression}_i +
+\beta_2 \cdot \text{fade score}_i +
+\beta_3 \cdot \text{pacing variability}_i +
+\epsilon_i
+$$
+
+## Step 6: Analyze DNF Separately
+
+For all starters:
+
+Outcome:
+
+$$D_i = 1 \text{ if DNF, else } 0
+$$
+
+Start with simple comparisons:
+
+- DNF rate by ability group.
+- DNF rate by early pacing aggressiveness.
+- DNF rate by early sector rank relative to ability group.
+
+Then build a simple model:
+
+$$P(D_i = 1) =
+f(\text{overall index}, \text{ability group}, \text{early aggression}, \text{early variability})
+$$
+
+Important:
+
+Only use early-race features that are available for both finishers and DNF runners.
+
+# Visual Ideas
+
+Good visualizations for this project:
+
+- Line chart of median normalized pacing profile by ability group.
+- Line chart of normalized sector pace for top-performing vs under-performing runners.
+- Heatmap of sector-relative performance by runner, sorted by final performance residual.
+- Scatter plot: early aggression vs final performance residual.
+- Scatter plot: fade score vs final performance residual.
+- Boxplot: DNF rate or final residual across pacing strategy clusters.
+- Checkpoint survival curve: percentage of runners still active by checkpoint and ability group.
+
+# Pacing Strategy Clusters
+
+After creating normalized pacing features, cluster runners into strategy types.
+
+Possible clusters:
+
+- fast starters / strong fade
+- conservative starters / strong finish
+- steady pacers
+- volatile pacers
+- late-race collapse
+
+This should come after feature engineering, not before. Clustering raw sector times would
+mostly rediscover ability differences. Clustering normalized pacing profiles is much
+more meaningful.
+
+# Possible Research Questions
+
+Good concrete questions:
+
+1. Among runners with similar `runner_overall_index`, which pacing profile produces
+   the best final-time residual?
+2. Is starting faster than ability-group median associated with worse late-race
+   performance?
+3. Is pacing variability associated with worse final outcome?
+4. Do stronger runners tolerate aggressive starts better than weaker runners?
+5. Are DNFs preceded by unusually aggressive early pacing?
+6. At which sector does the difference between strong and weak outcomes become visible?
+7. Are successful runners steady, or do they intentionally lose/gain time in specific
+   course sections?
+
+# Important Risks
+
+## Course Profile Confounding
+
+Raw sector time depends heavily on terrain. A slow sector may simply be uphill. This is
+why sector-relative normalization is important.
+
+## Ability Index Meaning
+
+We need to confirm the direction and meaning of `runner_overall_index`. If the index is
+not calibrated well, it should still be useful for grouping, but conclusions should be
+phrased carefully.
+
+## DNF Bias
+
+Finishers-only analysis excludes the worst outcomes. DNF analysis should be separate
+and should use only features available before dropout.
+
+## Missing Data
+
+Missing sector times, missing runner URLs, missing final times, or incomplete checkpoint
+paths can all affect results. Each cleaning decision should be recorded.
+
+## Same Runner Across Years
+
+If we later include multiple years, the same real person may appear multiple times.
+That is not necessarily a problem, but the unit should be clear:
+
+- runner identity across all years
+- runner-race-year identity
+
+For pacing strategy, `runner_id` as runner/race/year is probably the right unit.
+
+# Recommended First Analysis Version
+
+The first clean version should be simple:
+
+1. Finishers only.
+2. One race and one year.
+3. Ability groups based on `runner_overall_index` quantiles.
+4. Sector times converted to minutes.
+5. Sector IDs normalized to `0, 1, 2, ..., K`.
+6. Pacing features:
+   - early relative pace
+   - middle relative pace
+   - late relative pace
+   - fade score
+   - pacing variability
+7. Outcome:
+   - final time residual after predicting final time from `runner_overall_index`
+
+Then compare:
+
+$$\text{performance residual} \sim
+\text{early relative pace} +
+\text{fade score} +
+\text{pacing variability}
+$$
+
+This gives a first answer to:
+
+> After accounting for pre-race ability, what pacing behavior is associated with
+> better race execution?
+
+# Plain-English Summary
+
+The cleanest way to think about the project is:
+
+> Do not compare every runner directly to every other runner. First compare runners to
+> runners with similar expected ability. Then ask whether their pacing shape explains
+> who beat expectation, who underperformed, and who dropped out.
+
+The central object should be a normalized pacing profile for each runner. Once each
+runner has that profile, we can summarize it with simple features such as early
+aggression, late fade, steadiness, and variability. Those features can then be compared
+against final performance relative to expectation.
+
+This keeps the analysis fair, interpretable, and close to the actual race story.
