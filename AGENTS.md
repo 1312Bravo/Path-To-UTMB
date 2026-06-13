@@ -15,6 +15,9 @@ Acts like local instructions for work in that folder and its subfolders.
 - Keep code readable and consistent with the surrounding project style.
 - Avoid renaming, moving, or deleting files unless it clearly helps the task.
 - Keep the same coding style and variable naming as for now.
+- When using `assign` for new dataframe columns, prefer spaces around `=` in assignments, for example `new_col = lambda df: ...` instead of `new_col=lambda df: ...`.
+- When defining plotting parameters, prefer spaces around `=` in keyword-style arguments, for example `s = 8` instead of `s=8`.
+- When indexing subplots, prefer `ax[0,0]` instead of `ax[0, 0]`.
 
 ## Data Handling
 - Treat source data as read-only unless the task explicitly requires transformation.
