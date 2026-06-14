@@ -48,15 +48,92 @@ It can suggest effort, but it cannot prove effort.
 
 # Main Idea
 
+There are two different things we may want from sector normalization:
+
+1. A pacing-shape view:
+
+> How did this runner distribute their own race across sectors?
+
+2. A sector-performance view:
+
+> Was this runner faster or slower than expected in this sector?
+
+For pacing strategy, the pacing-shape view should probably come first. We already have
+a normalized final race outcome, so sector features should initially describe the shape
+of the runner's race rather than simply reconstructing total race performance.
+
+# Step 1: Within-Runner Sector Normalization
+
 For each runner $i$ and sector $j$, let:
 
-$$t_{ij} = \text{actual sector time}$$
+$$t_{ij} = \text{sector time for runner } i \text{ in sector } j$$
 
-We estimate:
+and:
+
+$$T_i = \sum_j t_{ij}$$
+
+Then define the sector time share:
+
+$$s_{ij} = \frac{t_{ij}}{T_i}$$
+
+Interpretation:
+
+- $s_{ij}$ is the share of the runner's own race spent in sector $j$.
+- Each runner's sector shares sum to 1.
+- This removes total speed and focuses on pacing shape.
+
+This answers:
+
+> Did this runner spend more or less of their race in this part of the course?
+
+This is different from asking whether the runner was fast overall. A slower runner and
+a faster runner can have similar pacing shape if they allocate their race time across
+sectors in a similar pattern.
+
+# Step 2: Sector-Relative Share Normalization
+
+Raw sector shares are still affected by the fact that some sectors naturally take a
+larger share of everyone's race. So after within-runner normalization, we can compare
+each runner's sector share to the typical share for that sector in the same race/year.
+
+Let:
+
+$$m_{y,j} = \text{median sector share in year } y \text{ and sector } j$$
+
+Then:
+
+$$q_{ij} = \frac{s_{ij}}{m_{y(i),j}} - 1$$
+
+or, if we want higher-is-better / faster-is-better style:
+
+$$q_{ij}^{*} = 1 - \frac{s_{ij}}{m_{y(i),j}}$$
+
+Interpretation:
+
+- $q_{ij}^{*} > 0$: runner spent less share of their race in this sector than typical.
+- $q_{ij}^{*} = 0$: runner was typical for that sector.
+- $q_{ij}^{*} < 0$: runner spent more share of their race in this sector than typical.
+
+This answers:
+
+> Relative to their own total race, did this runner lose or gain time share in this
+> sector compared with other runners?
+
+This two-step approach does both important things:
+
+- within-runner normalization removes total race speed
+- sector/year comparison adjusts for sector difficulty and year/course context
+
+# Later: Expected Sector-Time Model
+
+The model-based expected sector-time idea is still useful, but it should probably be a
+second analysis rather than the first pacing-shape analysis.
+
+For each runner $i$ and sector $j$, estimate:
 
 $$\hat{t}_{ij} = \text{expected sector time}$$
 
-Then define:
+from ability, year, sector, and interactions. Then:
 
 $$r_{ij} = 1 - \frac{t_{ij}}{\hat{t}_{ij}}
 $$
@@ -67,19 +144,9 @@ Interpretation:
 - $r_{ij} = 0$: runner was approximately as expected.
 - $r_{ij} < 0$: runner was slower than expected in that sector.
 
-Example:
-
-- $r_{ij} = 0.05$: runner was about 5% faster than expected.
-- $r_{ij} = -0.10$: runner was about 10% slower than expected.
-
-This is convenient because higher is better, just like the normalized race-time
-residual.
-
-For pacing analysis, this can also be read as:
-
-- high $r_{ij}$: runner was relatively aggressive or strong in this sector.
-- low $r_{ij}$: runner was relatively conservative, struggling, delayed, or fading in
-  this sector.
+This is more of a sector-performance signal than a pure pacing-shape signal. It can be
+very useful later, but if we aggregate it across all sectors it will naturally be
+related to final race performance.
 
 This distinction matters. If a runner starts "hot", one interpretation is that they
 started above what the model expected for their pre-race ability. But in real life, the
@@ -90,7 +157,26 @@ judgment of whether the runner paced correctly.
 
 # Normalized To What?
 
-Each sector time is normalized to a model-based expected sector time.
+In the first pacing-shape version, sector time is normalized to the runner's own total
+sector time.
+
+So the first normalization target is:
+
+> the runner's own race.
+
+Then, in the second step, the runner's sector share is compared with the typical sector
+share for the same race/year/sector.
+
+So the second normalization target is:
+
+> the typical share for that sector in that race/year.
+
+This means the normalized value is not simply "fast sector time". It is:
+
+> relative allocation of race time to a sector, adjusted for the fact that sectors have
+> different natural sizes.
+
+The model-based version has a different normalization target.
 
 The expected sector time is estimated from:
 
@@ -105,7 +191,8 @@ In words, the model asks:
 > Given this runner's pre-race ability, in this race year, on this specific sector,
 > what sector time would we expect?
 
-Then the normalized sector value compares actual time against this expected time:
+Then the model-based normalized sector value compares actual time against this expected
+time:
 
 $$r_{ij} = 1 - \frac{t_{ij}}{\hat{t}_{ij}}
 $$
@@ -116,9 +203,9 @@ This means:
 - $r_{ij} = 0.00$: runner was approximately as expected in that sector.
 - $r_{ij} = -0.10$: runner was about 10% slower than expected in that sector.
 
-After this transformation, sector rows become much more comparable across runners,
-years, and sectors. They are no longer compared as raw minutes. They are compared as
-relative performance against expectation.
+After this transformation, sector rows become much more comparable as relative
+performance against expectation. But for pacing-shape analysis, we should first prefer
+the within-runner share approach.
 
 Example:
 
@@ -332,7 +419,7 @@ stopping at that hut can be considered part of executing that sector.
 
 ## Current Recommendation
 
-Use `sector_time_full_no_rest_min` as the first/main sector-time normalization target.
+Use `sector_time_full_no_rest_min` as the first/main sector-time input.
 
 Reasons:
 
@@ -341,7 +428,35 @@ Reasons:
 - rest can be analyzed separately as a pacing/rest-strategy feature
 - it keeps interpretation simple: faster/slower movement through the sector
 
-Then use `sector_time_full_end_rest_min` as a sensitivity model.
+For the first pacing-shape normalization, convert this movement time into a within-runner
+share:
+
+$$
+\text{sector_moving_share}_{ij}
+=
+\frac{
+\text{sector_time_full_no_rest}_{ij}
+}{
+\sum_j \text{sector_time_full_no_rest}_{ij}
+}
+$$
+
+Then compare this share within the same race/year/sector:
+
+$$
+\text{sector_moving_share_relative}_{ij}
+=
+1 -
+\frac{
+\text{sector_moving_share}_{ij}
+}{
+\text{median sector_moving_share}_{y,j}
+}
+$$
+
+This should be the first pacing-profile signal.
+
+Then use `sector_time_full_end_rest_min` as a sensitivity version.
 
 Reasons:
 
@@ -371,6 +486,9 @@ $$
 $$
 
 This says what share of the current checkpoint-block time was spent resting/stopped.
+
+The expected sector-time model should come later as a separate sector-performance
+analysis, not as the first pacing-shape normalization.
 
 # Clean Sector Rows Before Modeling
 
