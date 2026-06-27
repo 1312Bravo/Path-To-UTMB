@@ -335,16 +335,27 @@ def build_sector_boundaries(
 
     return sector_boundaries_df
 
-# - sector_checkpoint_id
-# - sector_elevation_gain_m
-# - sector_elevation_loss_m
+# -------------------------------------------------
+# Assign GPX course points to year-specific sectors
+# -------------------------------------------------
 
-def build_course_sector_elevation_aggregation(
+# - sector_checkpoint_id
+# - sector_boundary_index
+# - sector_start_distance_m
+# - sector_end_distance_m
+
+# same GPX point
+# -> 2022 sector assignment
+# -> 2023 sector assignment
+# -> 2024 sector assignment
+# -> 2025 sector assignment
+
+def assign_course_points_to_sectors(
         utmb_course_df: pd.DataFrame,
         sector_boundaries_df: pd.DataFrame
     ) -> pd.DataFrame:
 
-    course_sector_agg_list = []
+    course_sector_list = []
     sector_boundary_groups = sector_boundaries_df.groupby(["race_id", "year"], dropna=False)
 
     for group_key, sector_boundaries_group_df in sector_boundary_groups:
@@ -353,7 +364,7 @@ def build_course_sector_elevation_aggregation(
             sector_boundaries_group_df["sector_end_distance_m"].to_numpy()
         )
 
-        course_sector_df = (
+        course_sector_group_df = (
             utmb_course_df
             .sort_values("total_distance_2d_m")
             .reset_index(drop=True)
@@ -377,26 +388,44 @@ def build_course_sector_elevation_aggregation(
             )
         )
 
-        agg_group_cols = [
-            col for col in ["race_id", "year", "sector_checkpoint_id"]
-            if col in course_sector_df.columns
-        ]
+        course_sector_list.append(course_sector_group_df)
 
-        course_sector_agg_group_df = (
-            course_sector_df
-            .groupby(agg_group_cols)
-            .agg(
-                sector_elevation_gain_m=("point_elevation_gain_m", "sum"),
-                sector_elevation_loss_m=("point_elevation_loss_m", "sum"),
-            )
-            .reset_index()
-        )
-
-        course_sector_agg_list.append(course_sector_agg_group_df)
-
-    course_sector_agg_df = pd.concat(
-        course_sector_agg_list,
+    course_sector_df = pd.concat(
+        course_sector_list,
         ignore_index=True,
+    )
+
+    return course_sector_df
+
+
+# -------------------------------------------------
+# Aggregate GPX elevation by sector
+# -------------------------------------------------
+
+# - race_id
+# - year
+# - sector_checkpoint_id
+# - sector_elevation_gain_m
+# - sector_elevation_loss_m
+
+def build_course_sector_elevation_aggregation(
+        utmb_course_df: pd.DataFrame,
+        sector_boundaries_df: pd.DataFrame
+    ) -> pd.DataFrame:
+
+    course_sector_df = assign_course_points_to_sectors(
+        utmb_course_df = utmb_course_df,
+        sector_boundaries_df = sector_boundaries_df,
+    )
+
+    course_sector_agg_df = (
+        course_sector_df
+        .groupby(["race_id", "year", "sector_checkpoint_id"])
+        .agg(
+            sector_elevation_gain_m = ("point_elevation_gain_m", "sum"),
+            sector_elevation_loss_m = ("point_elevation_loss_m", "sum"),
+        )
+        .reset_index()
     )
 
     return course_sector_agg_df
