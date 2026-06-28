@@ -1,6 +1,24 @@
 import numpy as np
 import pandas as pd
 
+# Sector rows are arrival-based: each row describes the segment from the previous checkpoint to the current checkpoint.
+# - sector_race_time_at_checkpoint - formatted cumulative race time at sector (checkpoint) arrival
+# - sector_time_seconds - cumulative race time at sector (checkpoint) arrival
+# - sector_time - previous sector time (time for the segment that ended at this checkpoint) - excluding rest at the previous checkpoint.
+# - sector_rest_time / sector_rest_time_seconds - checkpoint stop time, but some rows may be special rest-only checkpoint rows.
+# - Row (j) means sector from previous checkpoint to current checkpoint and not sector starting at current checkpoint
+
+# For row (j):
+# - `sector_time_moving_min` = previous checkpoint departure → current checkpoint arrival
+# - `sector_time_elapsed_min` = previous checkpoint arrival → current checkpoint arrival
+# - `sector_rest_time_min` = current checkpoint arrival → current checkpoint departure
+# - `sector_previous_rest_time_min` = previous checkpoint arrival → previous checkpoint departure
+
+
+# - Rest can be assigned to the sector in multiple ways:
+# - sector_time_full_no_rest_min = movement only
+# - sector_time_full_start_rest_min = previous checkpoint rest + movement to current checkpoint
+# - sector_time_full_end_rest_min = movement to current checkpoint + current checkpoint rest
 
 # -------------------------------------------------
 # Clean sector data columns
@@ -12,6 +30,7 @@ import pandas as pd
 # - sector_time_moving_min
 # - sector_time_elapsed_min
 # - sector_rest_time_min
+# - sector_previous_rest_time_min
 # - sector_time_full_start_rest_min
 # - sector_time_full_end_rest_min
 # - sector_time_full_no_rest_min
@@ -63,12 +82,18 @@ def clean_runner_race_sector_data(
             ).fillna(0),
         )
         .assign(
-            # Rest at previous checkpoint + movement into current checkpoint
-            sector_time_full_start_rest_min = lambda df: (
+            # Rest/stop time at previous checkpoint
+            sector_previous_rest_time_min = lambda df: (
                 df.groupby("runner_id")["sector_rest_time_min"].shift(1).fillna(0)
-                + df["sector_time_moving_min"]
             ),
-            # Movement into current checkpoint + rest at current checkpoint
+
+            # Previous checkpoint arrival -> current checkpoint arrival
+            # Includes rest at the previous checkpoint.
+            sector_time_full_start_rest_min = lambda df: (
+                df["sector_previous_rest_time_min"] + df["sector_time_moving_min"]
+            ),
+            # Previous checkpoint departure -> current checkpoint departure
+            # Includes rest at the current checkpoint.
             sector_time_full_end_rest_min = lambda df: (
                 df["sector_time_moving_min"] + df["sector_rest_time_min"]
             ),
@@ -79,9 +104,11 @@ def clean_runner_race_sector_data(
         )
         .assign(
             # Useful rest share feature
+            # Share of start-rest sector time spent resting at the previous checkpoint.
             sector_rest_time_share_start_rest = lambda df: (
-                df["sector_rest_time_min"] / df["sector_time_full_start_rest_min"]
+                df["sector_previous_rest_time_min"] / df["sector_time_full_start_rest_min"]
             ),
+            # Share of end-rest sector time spent resting at the current checkpoint.
             sector_rest_time_end_share = lambda df: (
                 df["sector_rest_time_min"] / df["sector_time_full_end_rest_min"]
             ),
