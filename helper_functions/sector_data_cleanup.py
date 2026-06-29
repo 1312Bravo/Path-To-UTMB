@@ -213,6 +213,30 @@ def apply_rest_only_checkpoint_correction(
                 0,
                 df["sector_time_moving_min"],
             ),
+        )
+        .assign(
+            # Recalculate time definitions after rest-only movement time is corrected.
+            sector_time_full_start_rest_min = lambda df: (
+                df["sector_previous_rest_time_min"] + df["sector_time_moving_min"]
+            ),
+            sector_time_full_end_rest_min = lambda df: (
+                df["sector_time_moving_min"] + df["sector_rest_time_min"]
+            ),
+            sector_time_full_no_rest_min = lambda df: (
+                df["sector_time_moving_min"]
+            ),
+            sector_rest_time_share_start_rest = lambda df: np.where(
+                df["sector_time_full_start_rest_min"] > 0,
+                df["sector_previous_rest_time_min"] / df["sector_time_full_start_rest_min"],
+                np.nan,
+            ),
+            sector_rest_time_end_share = lambda df: np.where(
+                df["sector_time_full_end_rest_min"] > 0,
+                df["sector_rest_time_min"] / df["sector_time_full_end_rest_min"],
+                np.nan,
+            ),
+        )
+        .assign(
             sector_distance_km_runner_estimate = lambda df: np.where(
                 df["sector_is_rest_only"],
                 0,

@@ -128,6 +128,10 @@ It captures the reusable workflow and style conventions to follow when helping w
 - Use small marker sizes for dense scatter plots.
 - Use `alpha` to reduce visual clutter when needed.
 - Use `markeredgecolor`, `linewidth`, and `lw` directly when they improve the appearance of a plot.
+- Format plotting calls compactly and consistently: prefer `data = ...`, `x = ...`, `y = ...`, `ax = ax[0,0]`, and similar keyword arguments with spaces around `=`.
+- Keep subplot indexing tight with no spaces inside the row/column brackets, like `ax[0,0]`.
+- When a plotting call is readable on one line, keep the keyword arguments together instead of breaking every argument onto a new line.
+- When a plotting call needs multiple lines, keep the split logical and compact, with related keyword arguments grouped together.
 - Keep scatter plots dark and simple when the purpose is to show trend rather than styling.
 - Use KDEs and histograms together when comparing distributions, especially for class splits or residual diagnostics.
 - Use regression lines on top of scatter plots when you want the trend to be obvious without extra explanation.
