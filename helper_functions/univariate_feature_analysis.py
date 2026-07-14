@@ -23,7 +23,7 @@ def univariate_numeric_linear_analysis(
 
     if scatter_kws is None:
         scatter_kws = {
-            "alpha": 0.25,
+            "alpha": 0.1,
             "s": 15,
             "color": "black",
         }
