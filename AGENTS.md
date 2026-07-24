@@ -1,25 +1,32 @@
 # AGENTS.md
 
 ## Purpose
-This repository stores Codex instruction assets and helper scripts.
-Use this file for repository-specific guidance only.
+This repository stores UTMB race-result extraction, course analysis, pacing analysis, notebooks, and derived data outputs.
 
-- Follow the current user request first.
-- Do not override safety rules or higher-priority instructions.
-- Keep the repository focused on instruction files and supporting sync helpers.
+Use this file for project-specific guidance only. Reusable workflows should live as installed Codex skills, not as copied root-level `SKILL.md` files.
 
 ## Working Principles
 - Inspect the existing files before editing.
 - Keep changes small, readable, and reversible.
 - Preserve user work and validated outputs.
 - Avoid renames, moves, or deletes unless they are clearly needed.
-- Use the terminal for sync or maintenance tasks.
-- Keep this repository organized and easy to maintain.
+- Treat helper code, notebooks, and existing data outputs as the source of truth for current project behavior.
+
+## Project Areas
+- `helper_functions/` contains reusable UTMB helper code. Inspect `helper_functions/utmb_api.py` before changing data fetch logic.
+- `utmb_under_27h/` contains UTMB under-27-hour data work and outputs.
+- `pacing_strategy/` contains pacing and derived analysis work.
+- `course_analysis/` contains course analysis notebooks and outputs.
+- `data/` contains project data files.
+
+## Reusable Skills
+- Use `utmb-research` for UTMB-specific data fetching, race-result outputs, pacing analysis, and project workflow.
+- Use `data-science-project-workflow` for notebooks, dataframes, modeling, plotting, and analysis style.
+- These reusable skills are installed globally under `C:\Users\Urh\.codex\skills\`.
+- Their source copies live in `C:\Users\Urh\Desktop\Urh\Github Repositories\Codex-Instructions\skills\`.
+- Do not recreate large copied `SKILL.md` files in this project; update the source skill in `Codex-Instructions` and reinstall it when reusable guidance changes.
 
 ## Verification
-- Check the target files after edits.
-- Confirm scripts still do what they are supposed to do.
-- Summarize what changed and note any follow-up.
-
-## Style Reference
-- For reusable coding, notebook, plotting, dataframe, and modeling style, follow `SKILL.md`.
+- Check changed files after edits.
+- Run focused commands or notebook checks when available and relevant.
+- Summarize what changed, which files were touched, and where any data outputs were written.
